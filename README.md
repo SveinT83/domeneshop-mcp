@@ -4,9 +4,25 @@ An open-source [Model Context Protocol](https://modelcontextprotocol.io/) server
 [Domeneshop](https://api.domeneshop.no/docs/). Use domain names instead of remembering IDs,
 preview DNS changes, then apply with conflict detection, backups and independent readback.
 
-**Status: initial implementation. Automated tests use a simulated upstream API. A bounded live
-read-only test through MCP stdio has also passed. Real API write acceptance and production
-deployment remain separate steps; no production DNS was changed during validation.**
+**Status: initial implementation. Automated tests, live read/preview tests through stdio and
+LiteLLM, and Docker deployment have passed. Open WebUI user flows, Keycloak group authorization,
+ChatGPT Work OAuth and real API writes still need acceptance testing. No production DNS was
+changed during validation.**
+
+## Intended use
+
+Use **Open WebUI as the frontend**, **LiteLLM as the MCP gateway and access-control point**,
+and **Keycloak for SSO**. ChatGPT Work is a second client of the same gateway, so users can use
+Domeneshop directly from Work without opening Open WebUI. Both clients must receive only the
+server and tool permissions granted to their authenticated user.
+
+Keycloak login alone does not grant Domeneshop access. The intended group policy separates
+readers from operators who may apply changes. The current verified deployment uses a dedicated
+personal LiteLLM virtual key; automatic group mapping and Work's OAuth connection are not yet
+configured for this server.
+
+See [client architecture, SSO and access policy](docs/access-and-clients.md) for the two client
+flows, proposed group mapping, authentication requirements and rollout checks.
 
 ## Features
 

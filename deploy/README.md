@@ -31,6 +31,10 @@ TXT create/read/delete on a test domain, then test the intended client/gateway e
 
 ## LiteLLM
 
+For the intended Open WebUI and ChatGPT Work clients, Keycloak SSO and group authorization,
+read [client architecture and access policy](../docs/access-and-clients.md). The virtual-key example
+below is the verified transport setup; it does not configure user OAuth or group synchronization.
+
 Use Streamable HTTP. For a container named `domeneshop-mcp` on the gateway's private Docker network,
 set `MCP_ALLOWED_HOSTS=domeneshop-mcp:8000` and register the following through LiteLLM's admin UI or
 `POST /v1/mcp/server`. Replace the placeholder privately with the server's `MCP_HTTP_TOKEN`:
