@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "domeneshop-mcp"
+version = "0.1.0"
+description = "Domeneshop MCP server with verified change plans and DNS shortcuts"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = ["mcp>=1.28,<2", "httpx>=0.28,<0.29", "pydantic>=2.11,<3"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "pytest-asyncio>=1,<2", "ruff>=0.12,<1"]
+
+[project.scripts]
+domeneshop-mcp = "domeneshop_mcp.server:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/domeneshop_mcp"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]

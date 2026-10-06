@@ -1,0 +1,27 @@
+[Unit]
+Description=Domeneshop MCP server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=domeneshop-mcp
+Group=domeneshop-mcp
+EnvironmentFile=/etc/domeneshop-mcp/environment
+Environment=DOMENESHOP_STATE_DIR=/var/lib/domeneshop-mcp
+ExecStart=/opt/domeneshop-mcp/.venv/bin/domeneshop-mcp --transport http --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5
+StateDirectory=domeneshop-mcp
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
