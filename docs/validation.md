@@ -50,7 +50,10 @@ test verified gateway deletion and rejection of the previously working key; no r
 account was deleted. The private issuer-pinned registry and unknown-404 safeguards are covered
 by automated tests. Successful recurring timer runs were read back from systemd.
 
-These results do not claim that a ChatGPT Work plugin has been installed or that every user's
-Open WebUI connection has been authorized. Each client requires its own acceptance test.
+Open WebUI OAuth consent completed and the connection reported Connected for the test account.
+The saved connection was shared with the Senior group and read back. A chat-level tool call
+could not be tested because the frontend reported no available models. These results do not
+claim that a ChatGPT Work plugin has been installed or that every user's connection has been
+authorized. Each user must authorize their own connection.
 
 No live domain, DNS, forward or invoice changes were made for these tests.

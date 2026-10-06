@@ -119,6 +119,9 @@ proof of human approval.
 - Reader: 9 tools, domain read, invoices absent and direct `apply_plan` denied.
 - Team removal: previously valid temporary key rejected with HTTP 401.
 - Lifecycle: synthetic missing-source identity removed; real users unchanged.
-- Actual Open WebUI and Work account connections remain separate acceptance steps.
+- Open WebUI: OAuth consent completed and the connection reports Connected. Connection
+  visibility is restricted to the Senior group. The chat-level test was blocked because
+  the frontend reported no available models; model-driven execution is not yet verified.
+- Work plugin installation and an actual Work tool call remain separate acceptance steps.
 
 No live business DNS mutation was performed for these access tests.
