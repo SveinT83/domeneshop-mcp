@@ -5,6 +5,7 @@ import time
 import pytest
 
 from domeneshop_mcp.models import DNSChange, DNSRecord, Forward
+from domeneshop_mcp.service import record_payload
 
 
 def create(host="test", data="192.0.2.2"):
@@ -256,3 +257,51 @@ async def test_audit_and_overview(service, api):
     overview = await service.overview()
     assert overview["domain_count"] == 2
     assert overview["expiring"][0]["domain"] == "other.no"
+
+
+async def test_live_numeric_strings_support_audit_copy_and_deduplication(service, api):
+    api.dns[1][1]["priority"] = "10"
+    api.dns[1].append(
+        {
+            "id": 60,
+            "host": "_sip._tcp",
+            "type": "SRV",
+            "data": "sip.example.no",
+            "ttl": 3600,
+            "priority": "10",
+            "weight": "0",
+            "port": "5061",
+        }
+    )
+    assert (await service.audit(1))["record_count"] == 4
+    duplicate = DNSRecord(type="MX", data="mail.example.no", priority=10)
+    assert (await service.ensure_records(1, [duplicate]))["operation_count"] == 0
+    plan = await service.copy_dns(1, 2)
+    assert (await service.apply(plan["plan_id"]))["status"] == "verified"
+    assert next(r for r in api.dns[2] if r["type"] == "SRV")["port"] == 5061
+
+
+def test_numeric_ds_tag_does_not_coerce_caa_tag():
+    ds = record_payload(
+        {
+            "type": "DS",
+            "host": "@",
+            "data": "AB" * 32,
+            "tag": "1234",
+            "alg": "8",
+            "digest": "2",
+            "ttl": 3600,
+        }
+    )
+    assert ds["tag"] == 1234
+    caa = record_payload(
+        {
+            "type": "CAA",
+            "host": "@",
+            "data": "letsencrypt.org",
+            "tag": "issue",
+            "flags": "0",
+            "ttl": 3600,
+        }
+    )
+    assert caa["tag"] == "issue" and caa["flags"] == 0

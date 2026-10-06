@@ -17,6 +17,7 @@ from domeneshop_mcp.models import DNSRecord, Forward, hostname
         {"type": "A", "data": "192.0.2.1", "host": "../../invoices"},
         {"type": "A", "data": "192.0.2.1", "priority": 5},
         {"type": "MX", "data": "mail.example.no"},
+        {"type": "MX", "data": "mail.example.no", "priority": "10"},
         {"type": "TLSA", "data": "AABB", "usage": 3, "selector": 1, "dtype": 1},
         {"type": "DS", "data": "AABB", "tag": "12", "alg": 8, "digest": 2},
         {"type": "CAA", "data": "letsencrypt.org", "tag": 0, "flags": 0},

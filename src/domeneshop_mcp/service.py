@@ -23,7 +23,28 @@ def fingerprint(value) -> str:
 
 
 def record_payload(record: dict) -> dict:
-    return DNSRecord.model_validate({k: v for k, v in record.items() if k != "id"}).payload()
+    payload = {k: v for k, v in record.items() if k != "id"}
+    # The live API returns some integer fields as decimal strings (notably MX/SRV).
+    # Normalize only upstream payloads; MCP input validation remains strict.
+    numeric = {
+        "ttl",
+        "priority",
+        "weight",
+        "port",
+        "usage",
+        "selector",
+        "dtype",
+        "alg",
+        "digest",
+        "flags",
+    }
+    if payload.get("type") == "DS":
+        numeric.add("tag")
+    for field in numeric:
+        value = payload.get(field)
+        if isinstance(value, str) and value.isascii() and value.isdecimal():
+            payload[field] = int(value)
+    return DNSRecord.model_validate(payload).payload()
 
 
 def same_record(a: dict, b: dict) -> bool:

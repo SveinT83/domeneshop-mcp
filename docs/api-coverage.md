@@ -36,5 +36,9 @@ Inputs enforce TTL 60–604800 in multiples of 60, IP address family, required t
 relative host labels, IDNA names, TLSA hashes and path-safe IDs. Forward URLs allow HTTP, HTTPS and
 FTP as documented, without embedded credentials. They are stored upstream, never fetched locally.
 
+Live responses may encode numeric type-specific fields as decimal strings (observed for MX
+priority and SRV priority/weight/port). The server normalizes these response values for comparisons,
+copying and audit. This does not relax the strict integer schema for caller-supplied write inputs.
+
 All documented query filters are exposed. DDNS supports up to nine IP addresses and explicit
 server-request-IP mode. Account-wide invoice reads are disabled when domain access is restricted.

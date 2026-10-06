@@ -4,8 +4,9 @@ An open-source [Model Context Protocol](https://modelcontextprotocol.io/) server
 [Domeneshop](https://api.domeneshop.no/docs/). Use domain names instead of remembering IDs,
 preview DNS changes, then apply with conflict detection, backups and independent readback.
 
-**Status: initial implementation. Automated tests use a simulated upstream API. Real-account
-acceptance and deployment are separate steps; no production DNS is changed during setup.**
+**Status: initial implementation. Automated tests use a simulated upstream API. A bounded live
+read-only test through MCP stdio has also passed. Real API write acceptance and production
+deployment remain separate steps; no production DNS was changed during validation.**
 
 ## Features
 
