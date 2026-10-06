@@ -1,11 +1,11 @@
 """MCP tools, stdio entrypoint and authenticated Streamable HTTP transport."""
 
 import argparse
+import asyncio
 import hmac
 import json
 import logging
 import os
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any, Literal
 
@@ -35,13 +35,8 @@ DomainList = Annotated[list[DomainRef], Field(min_length=1, max_length=100)]
 
 
 def create_server(service: Service, *, allowed_hosts=None, allowed_origins=None) -> FastMCP:
-    @asynccontextmanager
-    async def lifespan(_server):
-        try:
-            yield {}
-        finally:
-            await service.client.close()
-
+    # The caller owns the shared API client. In stateless HTTP, the MCP lifespan
+    # runs once per request, so closing the client there breaks subsequent calls.
     mcp = FastMCP(
         "Domeneshop MCP",
         instructions=(
@@ -53,7 +48,6 @@ def create_server(service: Service, *, allowed_hosts=None, allowed_origins=None)
         ),
         json_response=True,
         stateless_http=True,
-        lifespan=lifespan,
         transport_security=TransportSecuritySettings(
             enable_dns_rebinding_protection=True,
             allowed_hosts=allowed_hosts or ["127.0.0.1:*", "localhost:*", "[::1]:*"],
@@ -354,18 +348,26 @@ def main():
             allowed_domains=allowed or None,
         )
         mcp = create_server(service, allowed_hosts=hosts, allowed_origins=origins)
-        if args.transport == "stdio":
-            mcp.run()
-        else:
-            app = BearerAuth(mcp.streamable_http_app(), os.getenv("MCP_HTTP_TOKEN", ""))
-            uvicorn.run(
-                app,
-                host=args.host,
-                port=args.port,
-                access_log=False,
-                proxy_headers=False,
-                log_level="warning",
-            )
+
+        async def serve():
+            try:
+                if args.transport == "stdio":
+                    await mcp.run_stdio_async()
+                else:
+                    app = BearerAuth(mcp.streamable_http_app(), os.getenv("MCP_HTTP_TOKEN", ""))
+                    config = uvicorn.Config(
+                        app,
+                        host=args.host,
+                        port=args.port,
+                        access_log=False,
+                        proxy_headers=False,
+                        log_level="warning",
+                    )
+                    await uvicorn.Server(config).serve()
+            finally:
+                await client.close()
+
+        asyncio.run(serve())
     except ValueError as error:
         parser.exit(2, f"Configuration error: {error}\n")
 

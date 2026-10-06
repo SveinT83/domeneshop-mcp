@@ -93,6 +93,66 @@ def test_http_token_required():
         BearerAuth(None, "short")
 
 
+async def test_stateless_http_keeps_api_client_and_plans_between_requests(service, api):
+    inner = create_server(service).streamable_http_app()
+    app = BearerAuth(inner, "x" * 32)
+    headers = {
+        "Authorization": "Bearer " + "x" * 32,
+        "Accept": "application/json, text/event-stream",
+    }
+    async with inner.router.lifespan_context(inner):
+        async with httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://localhost:8000",
+            headers=headers,
+        ) as client:
+            initialized = await client.post(
+                "/mcp",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 1,
+                    "method": "initialize",
+                    "params": {
+                        "protocolVersion": "2025-03-26",
+                        "capabilities": {},
+                        "clientInfo": {"name": "test", "version": "1"},
+                    },
+                },
+            )
+            assert initialized.status_code == 200
+
+            async def call(name, arguments):
+                response = await client.post(
+                    "/mcp",
+                    json={
+                        "jsonrpc": "2.0",
+                        "id": 2,
+                        "method": "tools/call",
+                        "params": {"name": name, "arguments": arguments},
+                    },
+                )
+                assert response.status_code == 200
+                result = response.json()["result"]
+                assert not result.get("isError"), result
+                return result["structuredContent"]
+
+            assert (await call("list_domains", {}))["count"] == 2
+            preview = await call(
+                "add_verification_txt",
+                {
+                    "domain": "example.no",
+                    "host": "_verify",
+                    "value": "test",
+                },
+            )
+            assert api.writes == 0
+            assert (await call("get_plan", {"plan_id": preview["plan_id"]}))["status"] == "preview"
+            applied = await call("apply_plan", {"plan_id": preview["plan_id"]})
+            assert applied["status"] == "verified"
+            records = await call("list_dns_records", {"domain": "example.no"})
+            assert any(r["host"] == "_verify" for r in records["records"])
+
+
 async def test_stdio_subprocess_handshake_and_capabilities():
     # Only protocol methods: these synthetic credentials never reach an external API.
     env = {**os.environ, "DOMENESHOP_TOKEN": "test-token", "DOMENESHOP_SECRET": "test-secret"}
