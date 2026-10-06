@@ -1,0 +1,17 @@
+[Unit]
+Description=Reconcile Domeneshop access from Keycloak into LiteLLM
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+ExecStart=/usr/bin/python3 /opt/domeneshop-mcp/keycloak_sync.py /opt/domeneshop-mcp/private/group-sync.json
+TimeoutStartSec=120
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/opt/domeneshop-mcp/private/revocations
+

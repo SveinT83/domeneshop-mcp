@@ -1,0 +1,11 @@
+[Unit]
+Description=Refresh Domeneshop SSO access every minute
+
+[Timer]
+OnBootSec=30s
+OnUnitActiveSec=60s
+AccuracySec=2s
+Unit=domeneshop-group-sync.service
+
+[Install]
+WantedBy=timers.target

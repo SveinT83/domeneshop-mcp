@@ -1,145 +1,124 @@
 # Open WebUI, LiteLLM, Keycloak and ChatGPT Work
 
-This is the intended deployment architecture. It separates the verified gateway integration
-from the user-facing SSO flows that still need implementation and acceptance testing.
-
-## Two clients, one authorization point
+## Two clients, one gateway
 
 ```mermaid
 flowchart LR
     U[User] --> W[Open WebUI]
     U --> C[ChatGPT Work plugin]
-    K[Keycloak SSO] -. user authentication .-> W
-    K -. OAuth account connection .-> C
-    W -->|Per-user MCP authentication| L[LiteLLM gateway]
-    C -->|Per-user OAuth access token| L
-    K -. verified identity and group claims .-> L
-    L -->|Private upstream bearer token| M[Domeneshop MCP]
-    M -->|Domeneshop API token and secret| D[Domeneshop API]
+    W -->|Personal OAuth| L[LiteLLM]
+    C -->|Personal OAuth| L
+    L -. SSO .-> K[Keycloak]
+    K -. Membership and lifecycle sync .-> L
+    L -->|Private bearer token| M[Domeneshop MCP]
+    M -->|Account credentials| D[Domeneshop API]
 ```
 
-Solid arrows show the intended request path, not a claim that every connection is deployed.
-Keycloak authenticates people; LiteLLM decides which MCP servers and tools they may use.
-Domeneshop MCP validates inputs, prepares plans and verifies authorized writes against the API.
+Production clients use the HTTPS LiteLLM endpoint. The MCP container has no published port
+and accepts a separate upstream token. Neither client receives the upstream token or
+Domeneshop credentials. Local stdio remains available for independent installations.
 
-“Directly from ChatGPT Work” means using the gateway through a Work plugin, without Open WebUI
-in the request path. Work's model does not need to run through LiteLLM for its MCP tools to do so.
-The private Domeneshop container remains reachable only by the gateway.
+Direct use from ChatGPT Work means connecting to LiteLLM without Open WebUI in the request
+path. Work's model need not run through LiteLLM for its tools to do so.
 
-## Current acceptance status — 2026-10-06
+## Senior access and provider permissions
 
-| Capability | Evidence / remaining work |
+The deployment policy uses `staff-internal` as the Senior group, with all 27 Domeneshop tools,
+including invoices and `apply_plan`. Changes still require a preview and user authorization.
+The optional synchronizer supports these explicit profiles:
+
+| Profile | Tools |
 | --- | --- |
-| Local stdio | Live domain/DNS/invoice reads and preview verified |
-| Docker → Domeneshop API | Running container, persistent private state and health check verified |
-| MCP client → HTTPS LiteLLM → container | 27 tools, reads, preview and unchanged-DNS comparison verified |
-| Personal LiteLLM virtual key | Restricted server grant verified; ungranted key denied; model routes denied |
-| Open WebUI → gateway as an SSO user | Intended frontend; a real user session still needs end-to-end testing |
-| Keycloak group → Domeneshop permissions | Proposed policy below; not configured or verified for this integration |
-| ChatGPT Work → gateway through OAuth | Required client path; OAuth connection and actual Work calls still pending |
-| Live API mutations | Not tested; current gateway deployment enables plan application for its authorized operator |
+| Reader | 9 domain, DNS, forwarding, export and audit tools |
+| Operator | 25 tools including previews and application; excludes invoices |
+| Full Senior (`full_access: true`) | All 27 tools, including account-wide invoices |
 
-This repository's default remains `DOMENESHOP_ALLOW_WRITES=false`. Deployment-specific identities,
-credentials and hostnames do not belong in this public repository.
+Dedicated LiteLLM teams map to exact configured Keycloak group IDs and paths. Users are joined
+by their SSO subject, never by email. A new user signs in to LiteLLM first; the next sync grants
+team membership. Names alone do not connect Keycloak groups and LiteLLM teams.
 
-## Access policy
+Grants are additive. An existing `all-proxy-mcpservers` administrator team or another explicit
+grant can provide additional access. Removing one group is not a universal deny if another
+grant remains. Review independent grants separately; this job does not rewrite unrelated
+teams. Keep `allow_all_keys=false`. [LiteLLM access controls](https://docs.litellm.ai/docs/mcp_control).
 
-The following group names are **proposals**, not existing or automatically created Keycloak groups:
+Domeneshop deliberately shares one account within this trusted Senior group. Services such as
+Tripletex and Visma must instead use each person's own provider authorization, preserving the
+provider's company, role and scope restrictions. Gateway access is an additional gate, never a
+replacement for provider permissions. Do not put a shared administrator credential behind a
+personal integration. This repository does not configure or verify Tripletex/Visma access.
 
-| Proposed Keycloak group | Intended LiteLLM entitlement |
-| --- | --- |
-| No Domeneshop group | Deny this MCP server, even if the person can sign in to Open WebUI or LiteLLM |
-| `domeneshop-read` | Explicit allowlist of domain/DNS/forward inspection, export and audit tools |
-| `domeneshop-operators` | Approved preview tools and `apply_plan`, plus the required read tools |
+## Gateway OAuth
 
-Decide invoice access separately because invoices are account-wide. Do not give a reader
-`apply_plan`; hiding write buttons or relying on model instructions does not enforce this rule.
-Permissions must be checked on actual tool invocation, including a caller supplying a known plan ID.
+The inspected LiteLLM 1.103.2 deployment implements native gateway OAuth: dynamic registration,
+authorization code with PKCE S256, explicit consent and rotating refresh tokens. MCP session
+tokens identify a person and reload gateway grants; they do not inherit a personal API key.
 
-LiteLLM represents server access with `object_permission.mcp_servers` and tool restrictions with
-`mcp_tool_permissions`. Resolve the deployed server UUID and upstream tool names before applying
-allowlists. Empty lists can inherit team permissions; they are not a universal deny rule.
-`require_key_mcp_access_defined` changes that behavior, and `no-mcp-servers` explicitly denies MCP
-access to a key. Review existing grants before changing any gateway-wide setting.
-[LiteLLM permission semantics](https://docs.litellm.ai/docs/mcp_control).
+Discover the issuer from the resource metadata:
 
-Keycloak groups, LiteLLM teams and LiteLLM MCP access groups are separate objects. Matching names
-do not connect them automatically. Map only explicitly approved group claims to entitlements.
-Keep `allow_all_keys=false`; preserve unrelated team/key permissions when updating grants.
-[Granting server access](https://docs.litellm.ai/docs/mcp_grant_access).
+- Resource: `https://YOUR_GATEWAY/domeneshop/mcp`
+- Protected-resource metadata: `/.well-known/oauth-protected-resource/domeneshop/mcp`
+- Advertised authorization server: `https://YOUR_GATEWAY/mcp`
+- Authorization-server metadata: `/.well-known/oauth-authorization-server/mcp`
 
-## Carry the user's identity to LiteLLM
+Keycloak SSO authenticates the person; the client presents the gateway's MCP session token.
+This flow differs from generic JWT claim mapping (documented as Enterprise) and upstream
+OAuth pass-through. Do not disable gateway authentication to make it work.
+[Generic JWT authentication](https://docs.litellm.ai/docs/proxy/token_auth).
 
-The preferred design uses Keycloak-issued access tokens intended for the gateway. Validate the
-signature, exact issuer, audience and expiration; identify the account by issuer plus subject.
-Do not authorize using a caller-supplied email, group header or Open WebUI session token alone.
-A shared privileged virtual key would make every frontend user act with the same permissions.
+Cloud clients need `available_on_public_internet=true` for gateway visibility. This does not
+authorize anonymous use. Keep the container private and test unauthenticated/ungranted callers.
+[Public MCP visibility](https://docs.litellm.ai/docs/mcp_public_internet).
 
-LiteLLM documents JWT claim mapping such as `team_ids_jwt_field: groups`, with team synchronization
-options. Its generic JWT authentication documentation currently marks that capability as Enterprise.
-Confirm the installed version and license before choosing this path; UI SSO does not establish that
-MCP JWT authentication is enabled. [JWT authentication](https://docs.litellm.ai/docs/proxy/token_auth).
+## Open WebUI
 
-If native JWT/group support is unavailable, retain individual restricted virtual keys for clients
-that support them, or design a separately reviewed OAuth adapter. Any adapter must map a verified
-person to that person's restricted gateway grant. Never replace per-user authorization with a
-single administrator credential. These are alternatives to implement, not features of this server.
+Add an **MCP / Streamable HTTP** connection with the resource URL and **OAuth 2.1** dynamic
+registration. Register the client, save, and authorize each user's account. Do not paste a
+master key. The OAuth option that forwards the frontend's existing SSO token is a different
+mechanism and requires matching token validation and audience at the gateway.
+[Open WebUI authentication](https://docs.openwebui.com/features/extensibility/mcp/).
 
-Define removal as well as addition: taking someone out of a group must revoke the relevant gateway
-entitlement, sessions and independent keys within a documented time bound. Verify stale tokens and
-cached/database memberships explicitly. Do not assume SSO logout revokes a static virtual key.
+Restrict connection visibility as appropriate while retaining gateway enforcement. Enable the
+tool in a chat and verify the real user. A model connection does not install MCP tools.
 
-## Open WebUI setup
+## ChatGPT Work
 
-Keep Keycloak as the frontend's OIDC provider. Add the LiteLLM endpoint
-`https://YOUR_GATEWAY/domeneshop/mcp` as an MCP Streamable HTTP tool connection.
-Open WebUI supports forwarding the user's SSO access token with its OAuth mode, or a separate
-OAuth 2.1 connection. Select the mode matching the gateway's implemented token validation and
-audience; the frontend login token is not automatically suitable for that resource.
-Registering the connection is separate from each user's account authorization. Enable the tool
-in a chat and test with the actual intended user.
-[Open WebUI MCP authentication](https://docs.openwebui.com/features/extensibility/mcp/).
+Create a custom MCP plugin for the gateway's HTTPS resource URL and select OAuth. Account and
+workspace installation permissions apply. No upstream key belongs in the plugin.
+[OpenAI authentication](https://developers.openai.com/plugins/build/auth).
 
-Restrict frontend tool visibility to the intended users as well, while retaining enforcement at
-LiteLLM. A model connection to LiteLLM alone does not install or authorize this MCP tool connection.
-
-## ChatGPT Work setup
-
-Use a custom MCP plugin pointed at the gateway's HTTPS endpoint. ChatGPT Work supports plugins,
-subject to the account/workspace's availability and permissions.
-[ChatGPT plugins](https://learn.chatgpt.com/docs/plugins).
-
-The standard authenticated remote plugin path needs OAuth; a static `x-litellm-api-key` header is
-not a substitute. The gateway-facing resource needs MCP protected-resource discovery and an OAuth
-authorization-code flow with PKCE. Keycloak supplies user authentication; configure the exact client
-registration, redirect URI and audience/resource required by the connection. Verify the access token
-on every request and map it to the user's LiteLLM permissions. This OAuth boundary has not yet been
-implemented or tested for this deployment.
-[OpenAI MCP authentication](https://developers.openai.com/plugins/build/auth).
-
-After that boundary works, create/install the plugin in the intended workspace, connect the user's
-account and test a domain read and a DNS preview from an actual Work conversation. A generic MCP
-client test does not prove Work installation, account linking or tool execution.
+Install it, connect the account and test a domain read and preview from an actual Work chat.
+A generic OAuth test does not prove Work installation or execution.
 [Connect and test](https://developers.openai.com/plugins/deploy/connect-chatgpt).
 
-## Acceptance before enabling group-based use
+## Membership and identity removal
 
-Run this matrix through both clients with ordinary users, not a gateway master key:
+See [the synchronizer guide](../deploy/group-sync.md). Optional lifecycle mode checks linked
+identities every minute. A confirmed deleted or disabled person is removed from LiteLLM using
+supported management APIs, including their keys and memberships across the gateway. It first
+narrows cached permissions and saves a private permission receipt.
 
-| Scenario | Required outcome |
-| --- | --- |
-| Authorized reader | Can inspect permitted data; cannot invoke `apply_plan` |
-| Authorized operator | Can preview; changes require user authorization and a valid plan |
-| Signed-in user without an approved group | Cannot list or call Domeneshop tools |
-| Removed group membership | Previously issued credentials lose access within the defined revocation window |
-| Wrong issuer/audience, expired token or spoofed group header | Rejected |
-| Work account reconnect / Open WebUI token refresh | Same person's permissions; no fallback to a shared privileged identity |
+Deletion detection only applies to subject/user pairs previously verified at the pinned issuer.
+An unknown imported identity returning 404 is not automatically deleted. Local/unlinked accounts
+are outside this policy and must not provide an alternate login for managed staff. Reactivation
+requires SSO sign-in and appropriate grants; old keys are never resurrected.
 
-Use an explicitly approved test domain for eventual live write acceptance. Record the authenticated
-actor, effective permissions, tool and result without logging tokens or complete DNS/TXT payloads.
+The normal interval is about one minute plus API latency. Monitor failed or stale runs; this
+is not instantaneous revocation or a hard SLA. If identity verification fails, the job attempts
+to block its dedicated teams. It cannot remove unrelated grants on a network error, or enforce
+revocation while the job is stopped or the gateway unavailable.
 
-All users of one server instance share the same upstream account, plan store and backup store.
-Gateway tool permissions do not provide per-domain or per-customer isolation inside this instance.
-Use separate instances and credentials/domain allowlists for different trust boundaries. Plan IDs
-are neither user-bound permissions nor human approval; `apply_plan` access must stay with trusted
-operators of that instance.
+One instance shares its upstream account, plans and backups. Use separate instances and domain
+allowlists for separate customer trust boundaries. Plan IDs are not user-bound permissions or
+proof of human approval.
+
+## Acceptance evidence
+
+- Local stdio and HTTPS gateway: reads, previews and unchanged-DNS comparison.
+- Native gateway OAuth: real account consent, 27-tool discovery and token refresh.
+- Reader: 9 tools, domain read, invoices absent and direct `apply_plan` denied.
+- Team removal: previously valid temporary key rejected with HTTP 401.
+- Lifecycle: synthetic missing-source identity removed; real users unchanged.
+- Actual Open WebUI and Work account connections remain separate acceptance steps.
+
+No live business DNS mutation was performed for these access tests.

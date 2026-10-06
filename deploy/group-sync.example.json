@@ -1,0 +1,21 @@
+{
+  "issuer": "https://YOUR_KEYCLOAK/realms/YOUR_REALM",
+  "client_id": "domeneshop-group-sync",
+  "client_secret": "REPLACE_PRIVATELY",
+  "gateway_url": "https://YOUR_GATEWAY",
+  "gateway_key": "REPLACE_PRIVATELY",
+  "server_id": "REGISTERED_DOMENESHOP_SERVER_UUID",
+  "staff_group": {"id": "STAFF_GROUP_UUID", "path": "/staff-internal"},
+  "groups": {
+    "read": {
+      "id": "OPTIONAL_READ_GROUP_UUID", "path": "/domeneshop-read",
+      "team_id": "DEDICATED_READ_TEAM_UUID"
+    },
+    "operators": {
+      "id": "STAFF_GROUP_UUID", "path": "/staff-internal",
+      "team_id": "DEDICATED_SENIOR_TEAM_UUID", "full_access": true
+    }
+  },
+  "revoke_inactive_users": false,
+  "revocation_audit_dir": "/opt/domeneshop-mcp/private/revocations"
+}

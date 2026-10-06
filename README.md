@@ -4,10 +4,10 @@ An open-source [Model Context Protocol](https://modelcontextprotocol.io/) server
 [Domeneshop](https://api.domeneshop.no/docs/). Use domain names instead of remembering IDs,
 preview DNS changes, then apply with conflict detection, backups and independent readback.
 
-**Status: initial implementation. Automated tests, live read/preview tests through stdio and
-LiteLLM, and Docker deployment have passed. Open WebUI user flows, Keycloak group authorization,
-ChatGPT Work OAuth and real API writes still need acceptance testing. No production DNS was
-changed during validation.**
+**Status: 76 automated tests and live read/preview tests through stdio, Docker and LiteLLM
+have passed. Keycloak group reconciliation, restricted tool access, credential revocation
+and gateway OAuth/refresh have been tested. End-to-end client acceptance and real API writes
+remain separate checks. No production DNS was changed during validation.**
 
 ## Intended use
 
@@ -16,13 +16,14 @@ and **Keycloak for SSO**. ChatGPT Work is a second client of the same gateway, s
 Domeneshop directly from Work without opening Open WebUI. Both clients must receive only the
 server and tool permissions granted to their authenticated user.
 
-Keycloak login alone does not grant Domeneshop access. The intended group policy separates
-readers from operators who may apply changes. The current verified deployment uses a dedicated
-personal LiteLLM virtual key; automatic group mapping and Work's OAuth connection are not yet
-configured for this server.
+Keycloak login alone does not grant Domeneshop access. The optional group reconciler maps
+`staff-internal` (Senior) to all 27 tools, with a separate reader policy available. Clients use
+personal gateway OAuth; the upstream credential stays private. Optional lifecycle revocation
+removes a deleted or disabled linked person's gateway identity and keys.
 
 See [client architecture, SSO and access policy](docs/access-and-clients.md) for the two client
-flows, proposed group mapping, authentication requirements and rollout checks.
+flows, group mapping, authentication requirements and rollout checks. The
+[reconciliation deployment guide](deploy/group-sync.md) covers setup and revocation limits.
 
 ## Features
 
