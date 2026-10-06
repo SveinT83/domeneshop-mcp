@@ -2,9 +2,11 @@
 
 Locally verified on Windows, Python 3.12.14, MCP SDK 1.30.0:
 
-- 65 pytest cases passed, using a stateful HTTP API double.
+- 66 pytest cases passed, using a stateful HTTP API double.
 - Actual MCP stdio subprocess startup, initialize, tool discovery and resource read passed.
 - Streamable HTTP initialize, bearer rejection, Host and Origin checks passed in ASGI tests.
+- Separate stateless HTTP requests preserve the API client and pending plans through
+  preview, plan lookup, apply and readback against the API double.
 - MCP tool calls verified structured results and schema rejection.
 - Preview-only behavior; exact create/update/delete readback; header-only create responses;
   stale plans; concurrent apply; partial failures; cancellation; write backup failure;
@@ -24,8 +26,20 @@ The live API returned MX priority and SRV priority/weight/port as decimal string
 fields are now normalized before validation/comparison; caller-supplied write inputs remain strict.
 Regression tests cover audit, idempotent matching, copying and DS/CAA field distinctions.
 
-Not yet verified: real API writes, public DNS propagation, production gateway
-integration, Docker image execution (Docker unavailable locally). GitHub CI additionally runs
-Linux and Windows on Python 3.11, 3.12 and 3.13; consult the actual workflow result for its status.
+Live Docker and LiteLLM 1.103.2 integration also passed. The container runs as UID 10001 with
+a read-only root filesystem, persistent private state, a health check and automatic restart.
+It has no published port and is reached by the gateway through their private Docker network.
+An authenticated MCP client connected through the gateway's public HTTPS endpoint and verified
+27 tools, domain/DNS reads, TXT preview and plan lookup, followed by an unchanged-DNS comparison.
+The dedicated virtual key sees only this server's tools; model routes and an ungranted key were
+rejected with HTTP 403. Missing upstream bearer authentication was rejected with HTTP 401.
+Existing key permissions and server configurations were read back unchanged.
+
+That end-to-end test exposed an HTTP lifecycle bug: the stateless MCP request lifespan closed the
+shared API client after each request. Cleanup now belongs to the transport's process lifetime.
+The HTTP regression test above covers the failure, and the corrected container passed the live test.
+
+Not yet verified: real API writes or public DNS propagation. GitHub CI passed on Linux and Windows
+with Python 3.11, 3.12 and 3.13 for the deployed runtime commit; consult the workflow for later changes.
 
 No live domain, DNS, forward or invoice changes were made for these tests.
